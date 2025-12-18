@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brick Inc. WiFi Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            border-radius: 20px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: bold;
+            color: white;
+        }
+
+        h1 {
+            color: #2c3e50;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .network-list {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            color: #2c3e50;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .scan-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            margin-left: auto;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .scan-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .scan-btn:active {
+            transform: translateY(0);
+        }
+
+        .network-item {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+        }
+
+        .network-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .network-item.selected {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-color: transparent;
+        }
+
+        .network-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 12px;
+            font-size: 20px;
+        }
+
+        .network-info {
+            flex: 1;
+        }
+
+        .network-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .network-details {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .signal-strength {
+            font-size: 12px;
+            margin-left: auto;
+        }
+
+        .credentials-form {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .credentials-form.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            color: #2c3e50;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        input[type="password"],
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="password"]:focus,
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .password-toggle {
+            position: relative;
+        }
+
+        .toggle-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #7f8c8d;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .connect-btn {
+            width: 100%;
+            background: linear-gradient(45deg, #00b894, #00cec9);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .connect-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 184, 148, 0.3);
+        }
+
+        .connect-btn:disabled {
+            background: #b2bec3;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status {
+            text-align: center;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .security-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .security-wpa {
+            background: #00b894;
+            color: white;
+        }
+
+        .security-wep {
+            background: #fdcb6e;
+            color: #2d3436;
+        }
+
+        .security-open {
+            background: #e17055;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">B</div>
+            <h1>Brick Inc.</h1>
+            <p class="subtitle">WiFi Network Manager</p>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div class="network-list">
+            <div class="section-title">
+                Available Networks
+                <button class="scan-btn" onclick="scanNetworks()">🔄 Scan</button>
+            </div>
+            <div id="networkList">
+                <!-- Networks will be populated here -->
+            </div>
+        </div>
+
+        <div id="credentialsForm" class="credentials-form">
+            <div class="section-title">Network Credentials</div>
+            <div class="form-group">
+                <label for="networkName">Network Name</label>
+                <input type="text" id="networkName" readonly>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="password-toggle">
+                    <input type="password" id="password" placeholder="Enter network password">
+                    <button type="button" class="toggle-btn" onclick="togglePassword()">👁️</button>
+                </div>
+            </div>
+            <button class="connect-btn" onclick="connectToNetwork()">Connect to Network</button>
+        </div>
+    </div>
+
+    <script>
+        let selectedNetwork = null;
+        let availableNetworks = [];
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            scanNetworks();
+        });
+
+        function showStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+
+            if (type === 'success' || type === 'error') {
+                setTimeout(() => {
+                    status.className = 'status';
+                }, 5000);
+            }
+        }
+
+        function scanNetworks() {
+            showStatus('Scanning for networks...', 'info');
+
+            // Simulate network scanning
+            setTimeout(() => {
+                availableNetworks = [
+                    { name: 'SpectrumSetup-A1-plus', signal: 85, security: 'WPA2', frequency: '5 GHz' },
+                    { name: 'Brick\'s iPhone', signal: 72, security: 'WPA3', frequency: '2.4 GHz' },
+                    { name: 'CoffeeShop-Guest', signal: 45, security: 'Open', frequency: '2.4 GHz' },
+                    { name: 'Office_Network_5G', signal: 60, security: 'WPA2', frequency: '5 GHz' },
+                    { name: 'Neighbor_WiFi', signal: 30, security: 'WEP', frequency: '2.4 GHz' }
+                ];
+
+                displayNetworks(availableNetworks);
+                showStatus(`Found ${availableNetworks.length} networks`, 'success');
+            }, 1500);
+        }
+
+        function displayNetworks(networks) {
+            const networkList = document.getElementById('networkList');
+            networkList.innerHTML = '';
+
+            networks.forEach((network, index) => {
+                const networkItem = document.createElement('div');
+                networkItem.className = 'network-item';
+                networkItem.onclick = () => selectNetwork(network, networkItem);
+
+                const signalStrength = getSignalStrength(network.signal);
+                const securityBadge = getSecurityBadge(network.security);
+
+                networkItem.innerHTML = `
+                    <div class="network-icon">${getNetworkIcon(network.signal)}</div>
+                    <div class="network-info">
+                        <div class="network-name">
+                            ${network.name}
+                            ${securityBadge}
+                        </div>
+                        <div class="network-details">${network.frequency} • ${network.security}</div>
+                    </div>
+                    <div class="signal-strength">${signalStrength}</div>
+                `;
+
+                networkList.appendChild(networkItem);
+            });
+        }
+
+        function getNetworkIcon(signal) {
+            if (signal >= 70) return '📶';
+            if (signal >= 50) return '📶';
+            if (signal >= 30) return '📱';
+            return '📶';
+        }
+
+        function getSignalStrength(signal) {
+            if (signal >= 70) return 'Excellent';
+            if (signal >= 50) return 'Good';
+            if (signal >= 30) return 'Fair';
+            return 'Weak';
+        }
+
+        function getSecurityBadge(security) {
+            const badges = {
+                'WPA2': '<span class="security-badge security-wpa">WPA2</span>',
+                'WPA3': '<span class="security-badge security-wpa">WPA3</span>',
+                'WEP': '<span class="security-badge security-wep">WEP</span>',
+                'Open': '<span class="security-badge security-open">Open</span>'
+            };
+            return badges[security] || '';
+        }
+
+        function selectNetwork(network, element) {
+            // Remove previous selection
+            document.querySelectorAll('.network-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+
+            // Add selection to clicked network
+            element.classList.add('selected');
+            selectedNetwork = network;
+
+            // Show credentials form
+            const form = document.getElementById('credentialsForm');
+            form.classList.add('active');
+            document.getElementById('networkName').value = network.name;
+            document.getElementById('password').value = '';
+            document.getElementById('password').focus();
+
+            showStatus(`Selected: ${network.name}`, 'info');
+        }
+
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleBtn = document.querySelector('.toggle-btn');
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleBtn.textContent = '🔒';
+            } else {
+                passwordInput.type = 'password';
+                toggleBtn.textContent = '👁️';
+            }
+        }
+
+        function connectToNetwork() {
+            if (!selectedNetwork) {
+                showStatus('Please select a network first', 'error');
+                return;
+            }
+
+            const password = document.getElementById('password').value;
+            const connectBtn = document.querySelector('.connect-btn');
+
+            if (!password && selectedNetwork.security !== 'Open') {
+                showStatus('Please enter a password', 'error');
+                return;
+            }
+
+            // Show loading state
+            connectBtn.innerHTML = '<span class="loading"></span>Connecting...';
+            connectBtn.disabled = true;
+
+            // Simulate connection process
+            setTimeout(() => {
+                // Simulate success (in real app, this would be actual WiFi connection)
+                const success = Math.random() > 0.3; // 70% success rate for demo
+
+                if (success) {
+                    showStatus(`Successfully connected to ${selectedNetwork.name}!`, 'success');
+                    // In a real app, you would actually connect to the network here
+                    setTimeout(() => {
+                        // Reset form after successful connection
+                        document.getElementById('credentialsForm').classList.remove('active');
+                        document.querySelectorAll('.network-item').forEach(item => {
+                            item.classList.remove('selected');
+                        });
+                        selectedNetwork = null;
+                    }, 2000);
+                } else {
+                    showStatus(`Failed to connect to ${selectedNetwork.name}. Please check your password.`, 'error');
+                }
+
+                // Reset button
+                connectBtn.innerHTML = 'Connect to Network';
+                connectBtn.disabled = false;
+            }, 2000);
+        }
+
+        // Add keyboard support
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                connectToNetwork();
+            }
+        });
+    </script>
+</body>
+</html>

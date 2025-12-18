@@ -1,0 +1,324 @@
+#!/bin/bash
+
+# sb - Sandbox management CLI
+# Manages sb-dev, sb-life, sb-core containers
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+DOCKER_DIR="${REPO_ROOT}/docker"
+COMPOSE_FILE="${DOCKER_DIR}/docker-compose.yml"
+SANDBOX_DIR="${HOME}/.sandbox"
+LOG_FILE="${SANDBOX_DIR}/sb.log"
+CONTAINERS=("sb-dev" "sb-life" "sb-core")
+CONTAINER_NAMES=("dev" "life" "core")
+
+# Ensure log directory exists
+mkdir -p "${SANDBOX_DIR}"
+touch "${LOG_FILE}"
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "${LOG_FILE}"
+}
+
+check_docker() {
+    if ! command -v docker >/dev/null 2>&1 && ! command -v orbstack >/dev/null 2>&1; then
+        echo "Error: Docker or OrbStack not found" >&2
+        exit 1
+    fi
+    if ! docker info >/dev/null 2>&1; then
+        echo "Error: Docker/OrbStack is not running" >&2
+        exit 1
+    fi
+}
+
+validate_container() {
+    local container="$1"
+    case "${container}" in
+        dev|life|core)
+            return 0
+        ;;
+        *)
+            echo "Error: Invalid container name '${container}'. Must be: dev, life, or core" >&2
+            exit 2
+        ;;
+    esac
+}
+
+get_container_name() {
+    local short_name="$1"
+    case "${short_name}" in
+        dev) echo "sb-dev" ;;
+        life) echo "sb-life" ;;
+        core) echo "sb-core" ;;
+        *) echo "" ;;
+    esac
+}
+
+sanitize_snapshot_name() {
+    local name="$1"
+    # Only allow alphanumeric, dash, underscore
+    if [[ ! "${name}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "Error: Snapshot name must contain only alphanumeric characters, dashes, and underscores" >&2
+        exit 2
+    fi
+    echo "${name}"
+}
+
+cmd_start() {
+    check_docker
+    local container="${1:-all}"
+    
+    if [ "${container}" = "all" ]; then
+        log "Starting all containers"
+        cd "${DOCKER_DIR}"
+        if command -v docker-compose >/dev/null 2>&1; then
+            docker-compose -f docker-compose.yml up -d
+        elif docker compose version >/dev/null 2>&1; then
+            docker compose -f docker-compose.yml up -d
+        else
+            echo "Error: docker-compose not found" >&2
+            exit 1
+        fi
+        echo "Started all containers"
+    else
+        validate_container "${container}"
+        local container_name=$(get_container_name "${container}")
+        log "Starting container: ${container_name}"
+        if docker start "${container_name}" 2>/dev/null; then
+            echo "Started ${container_name}"
+        else
+            cd "${DOCKER_DIR}"
+            if command -v docker-compose >/dev/null 2>&1; then
+                docker-compose -f docker-compose.yml up -d "${container_name}"
+            elif docker compose version >/dev/null 2>&1; then
+                docker compose -f docker-compose.yml up -d "${container_name}"
+            else
+                echo "Error: docker-compose not found" >&2
+                exit 1
+            fi
+            echo "Started ${container_name}"
+        fi
+    fi
+}
+
+cmd_stop() {
+    check_docker
+    local container="${1:-all}"
+    
+    if [ "${container}" = "all" ]; then
+        log "Stopping all containers"
+        cd "${DOCKER_DIR}"
+        if command -v docker-compose >/dev/null 2>&1; then
+            docker-compose -f docker-compose.yml stop
+        elif docker compose version >/dev/null 2>&1; then
+            docker compose -f docker-compose.yml stop
+        else
+            echo "Error: docker-compose not found" >&2
+            exit 1
+        fi
+        echo "Stopped all containers"
+    else
+        validate_container "${container}"
+        local container_name=$(get_container_name "${container}")
+        log "Stopping container: ${container_name}"
+        docker stop "${container_name}" || true
+        echo "Stopped ${container_name}"
+    fi
+}
+
+cmd_status() {
+    check_docker
+    echo "Container Status:"
+    for container in "${CONTAINERS[@]}"; do
+        if docker ps --format "{{.Names}}" | grep -q "^${container}$"; then
+            echo "  ${container}: RUNNING"
+        elif docker ps -a --format "{{.Names}}" | grep -q "^${container}$"; then
+            echo "  ${container}: STOPPED"
+        else
+            echo "  ${container}: NOT CREATED"
+        fi
+    done
+}
+
+cmd_shell() {
+    check_docker
+    local container="$1"
+    
+    if [ -z "${container}" ]; then
+        echo "Error: Container name required. Usage: sb shell [dev|life|core]" >&2
+        exit 2
+    fi
+    
+    validate_container "${container}"
+    local container_name=$(get_container_name "${container}")
+    
+    if ! docker ps --format "{{.Names}}" | grep -q "^${container_name}$"; then
+        echo "Error: Container ${container_name} is not running" >&2
+        exit 1
+    fi
+    
+    log "Opening shell in: ${container_name}"
+    docker exec -it "${container_name}" /bin/bash || docker exec -it "${container_name}" /bin/sh
+}
+
+cmd_snapshot() {
+    check_docker
+    local container="$1"
+    local name="$2"
+    
+    if [ -z "${container}" ]; then
+        echo "Error: Container name required. Usage: sb snapshot [dev|life|core] [name]" >&2
+        exit 2
+    fi
+    
+    validate_container "${container}"
+    local container_name=$(get_container_name "${container}")
+    
+    if ! docker ps --format "{{.Names}}" | grep -q "^${container_name}$"; then
+        echo "Error: Container ${container_name} is not running" >&2
+        exit 1
+    fi
+    
+    local timestamp=$(date '+%Y%m%d-%H%M%S')
+    if [ -z "${name}" ]; then
+        name="manual"
+    else
+        name=$(sanitize_snapshot_name "${name}")
+    fi
+    
+    local snapshot_name="${container_name}-${timestamp}-${name}"
+    log "Creating snapshot: ${snapshot_name}"
+    
+    if docker commit "${container_name}" "${snapshot_name}"; then
+        echo "Snapshot created: ${snapshot_name}"
+    else
+        echo "Error: Failed to create snapshot" >&2
+        exit 1
+    fi
+}
+
+cmd_restore() {
+    check_docker
+    local container="$1"
+    local snapshot_name="$2"
+    
+    if [ -z "${container}" ] || [ -z "${snapshot_name}" ]; then
+        echo "Error: Container and snapshot name required. Usage: sb restore [dev|life|core] [snapshot-name]" >&2
+        exit 2
+    fi
+    
+    validate_container "${container}"
+    local container_name=$(get_container_name "${container}")
+    
+    if ! docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${snapshot_name}$"; then
+        echo "Error: Snapshot ${snapshot_name} not found" >&2
+        exit 1
+    fi
+    
+    log "Restoring snapshot: ${snapshot_name} to ${container_name}"
+    docker stop "${container_name}" 2>/dev/null || true
+    docker rm "${container_name}" 2>/dev/null || true
+    docker run -d --name "${container_name}" "${snapshot_name}" || {
+        echo "Error: Failed to restore snapshot" >&2
+        exit 1
+    }
+    echo "Restored ${snapshot_name} to ${container_name}"
+}
+
+cmd_ai_allow() {
+    local container="$1"
+    
+    if [ -z "${container}" ]; then
+        echo "Error: Container name required. Usage: sb ai allow [dev|life|core]" >&2
+        exit 2
+    fi
+    
+    validate_container "${container}"
+    mkdir -p "${SANDBOX_DIR}"
+    touch "${SANDBOX_DIR}/ai-allowed-${container}"
+    log "AI access allowed for: ${container}"
+    echo "AI access allowed for ${container}"
+}
+
+cmd_ai_deny() {
+    local container="$1"
+    
+    if [ -z "${container}" ]; then
+        echo "Error: Container name required. Usage: sb ai deny [dev|life|core]" >&2
+        exit 2
+    fi
+    
+    validate_container "${container}"
+    rm -f "${SANDBOX_DIR}/ai-allowed-${container}"
+    log "AI access denied for: ${container}"
+    echo "AI access denied for ${container}"
+}
+
+cmd_ai_status() {
+    echo "AI Permissions:"
+    for container in "${CONTAINER_NAMES[@]}"; do
+        if [ -f "${SANDBOX_DIR}/ai-allowed-${container}" ]; then
+            echo "  ${container}: ALLOWED"
+        else
+            echo "  ${container}: DENIED"
+        fi
+    done
+}
+
+# Main command dispatcher
+case "${1}" in
+    start)
+        cmd_start "$2"
+        ;;
+    stop)
+        cmd_stop "$2"
+        ;;
+    status)
+        cmd_status
+        ;;
+    shell)
+        cmd_shell "$2"
+        ;;
+    snapshot)
+        cmd_snapshot "$2" "$3"
+        ;;
+    restore)
+        cmd_restore "$2" "$3"
+        ;;
+    ai)
+        case "${2}" in
+            allow)
+                cmd_ai_allow "$3"
+                ;;
+            deny)
+                cmd_ai_deny "$3"
+                ;;
+            status)
+                cmd_ai_status
+                ;;
+            *)
+                echo "Error: Invalid AI command. Use: sb ai [allow|deny|status] [dev|life|core]" >&2
+                exit 2
+                ;;
+        esac
+        ;;
+    *)
+        echo "Usage: sb [start|stop|status|shell|snapshot|restore|ai] [args...]"
+        echo ""
+        echo "Commands:"
+        echo "  start [dev|life|core]     Start container(s)"
+        echo "  stop [dev|life|core]     Stop container(s)"
+        echo "  status                   Show status of all containers"
+        echo "  shell [dev|life|core]    Open shell in container"
+        echo "  snapshot [dev|life|core] [name]  Create snapshot"
+        echo "  restore [dev|life|core] [snapshot-name]  Restore snapshot"
+        echo "  ai allow [dev|life|core]  Allow AI access"
+        echo "  ai deny [dev|life|core]   Deny AI access"
+        echo "  ai status                Show AI permissions"
+        exit 2
+        ;;
+esac
+
+exit 0

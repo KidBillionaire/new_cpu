@@ -1,0 +1,26 @@
+FROM ubuntu:24.04
+
+# SECURITY: Read-only, no network, cap_drop: ALL, tmpfs: /tmp only
+
+RUN apt-get update && \
+    apt-get install -y \
+    vim \
+    less \
+    && rm -rf /var/lib/apt/lists/*
+
+# NO network tools (no curl, wget, git)
+# NO sudo
+# NO build tools
+
+# Create core user with UID 1002, GID 1002
+RUN groupadd -g 1002 core && \
+    useradd -u 1002 -g 1002 -m -s /bin/bash core
+
+# Create /secrets directory (will be mounted read-only)
+RUN mkdir -p /secrets && \
+    chown core:core /secrets
+
+WORKDIR /secrets
+
+# Default user: core (non-root, no sudo, no network)
+USER core

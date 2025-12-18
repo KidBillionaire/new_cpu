@@ -1,0 +1,26 @@
+FROM ubuntu:24.04
+
+# SECURITY: Restricted user, no sudo, cap_drop: ALL
+
+RUN apt-get update && \
+    apt-get install -y \
+    git \
+    curl \
+    wget \
+    vim \
+    less \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create sandbox user with UID 1001, GID 1001
+# NO sudo installation, NO sudo group membership
+RUN groupadd -g 1001 sandbox && \
+    useradd -u 1001 -g 1001 -m -s /bin/bash sandbox
+
+# NO build tools
+# NO network daemons
+# NO sudo
+
+WORKDIR /home/sandbox
+
+# Default user: sandbox (non-root, no sudo)
+USER sandbox

@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  sb-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.sb-dev
+    image: sb-dev:1.0.0
+    container_name: sb-dev
+    user: root
+    cap_add:
+      - ALL
+    restart: unless-stopped
+    networks:
+      - sandbox-net
+    volumes:
+      - ${HOME}/Code:/home/user/Code:rw
+      - ${HOME}/Documents:/home/user/Documents:rw
+      - ${HOME}/Desktop:/home/user/Desktop:rw
+      - ${HOME}/.sandbox/shared:/shared:rw
+    environment:
+      - SANDBOX_ENV=production
+    labels:
+      - "com.sandbox.type=dev"
+      - "com.sandbox.version=1.0.0"
+
+  sb-life:
+    build:
+      context: .
+      dockerfile: Dockerfile.sb-life
+    image: sb-life:1.0.0
+    container_name: sb-life
+    user: sandbox
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    networks:
+      - sandbox-net
+    volumes:
+      - ${HOME}/Code:/home/user/Code:rw
+      - ${HOME}/Documents:/home/user/Documents:rw
+      - ${HOME}/Desktop:/home/user/Desktop:rw
+      - ${HOME}/.sandbox/shared:/shared:rw
+    environment:
+      - SANDBOX_ENV=production
+    labels:
+      - "com.sandbox.type=life"
+      - "com.sandbox.version=1.0.0"
+
+  sb-core:
+    build:
+      context: .
+      dockerfile: Dockerfile.sb-core
+    image: sb-core:1.0.0
+    container_name: sb-core
+    user: core
+    read_only: true
+    cap_drop:
+      - ALL
+    network_mode: none
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    volumes:
+      - ${HOME}/.sandbox/core/secrets:/secrets:ro
+      - ${HOME}/.sandbox/shared:/shared:ro
+    environment:
+      - SANDBOX_ENV=production
+    labels:
+      - "com.sandbox.type=core"
+      - "com.sandbox.version=1.0.0"
+
+networks:
+  sandbox-net:
+    driver: bridge
